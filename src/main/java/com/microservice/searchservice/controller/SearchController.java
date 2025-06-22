@@ -36,6 +36,15 @@ public class SearchController {
             @Parameter(description = "Sort order") @RequestParam(value = "sortOrder", defaultValue = "DESC") String sortOrder,
             @Parameter(description = "Additional filters") @RequestParam(required = false) Map<String, String> filters) {
 
+        if (filters != null) {
+            filters.remove("q");
+            filters.remove("page");
+            filters.remove("size");
+            filters.remove("categories");
+            filters.remove("sortBy");
+            filters.remove("sortOrder");
+        }
+
         SearchRequest request = SearchRequest.builder()
                 .query(query)
                 .page(page)
@@ -49,13 +58,6 @@ public class SearchController {
         SearchResponse response = searchService.search(request);
         return ResponseEntity.ok(response);
     }
-
-//    @PostMapping
-//    @Operation(summary = "Advanced search", description = "Advanced search with complex parameters")
-//    public ResponseEntity<SearchResponse> advancedSearch(@Valid @RequestBody SearchRequest request) {
-//        SearchResponse response = searchService.search(request);
-//        return ResponseEntity.ok(response);
-//    }
 
     @GetMapping("/suggest")
     @Operation(summary = "Get search suggestions", description = "Provides search-as-you-type suggestions for a given partial query.")

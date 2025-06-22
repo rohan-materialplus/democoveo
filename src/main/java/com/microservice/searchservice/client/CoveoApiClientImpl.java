@@ -146,32 +146,39 @@ public class CoveoApiClientImpl implements CoveoApiClient {
 
     @Override
     public CoveoSuggestResponse getSuggestions(String query, String searchHub) {
+        log.info("Attempting SUGGEST operation for query '{}' using searchHub '{}'", query, searchHub);
+
         String suggestEndpoint = coveoProperties.getSearchEndpoint() + "/querySuggest";
-        URI uri = UriComponentsBuilder.fromHttpUrl(suggestEndpoint)
+
+        // We are now correctly building the URI and adding the searchHub parameter.
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(suggestEndpoint)
                 .queryParam("q", query)
                 .queryParam("organizationId", coveoProperties.getOrganizationId())
-//                .queryParam("searchHub", searchHub)
-                .queryParam("count", 5)
-                .build()
-                .toUri();
+                .queryParam("count", 5);
 
-        log.info("Attempting SUGGEST operation with SEARCH_KEY.");
-        // === START: ADD THIS DEBUG BLOCK ===
-        try {
-            String searchKey = coveoProperties.getSearchApiKey();
-            log.info("====== SUGGEST DEBUG ======");
-            log.info("Final Suggest URL: {}", uri);
-            log.info("Using Search Key starting with: {}", searchKey.substring(0, Math.min(8, searchKey.length())));
-            log.info("===========================");
-        } catch (Exception e) {
-            log.error("CRITICAL ERROR: Failed to read configuration before making suggest call.", e);
+        // This block now ensures the searchHub is added to the URL.
+        if (searchHub != null && !searchHub.isBlank()) {
+            builder.queryParam("searchHub", searchHub);
+        } else {
+            log.error("FATAL: searchHub is NULL or empty. The Coveo Suggest API will fail. Check application.yml.");
+            throw new IllegalArgumentException("SearchHub cannot be null or empty for suggestions.");
         }
-        // === END: ADD THIS DEBUG BLOCK ===
+
+        URI uri = builder.build().toUri();
+
+        log.info("Final Suggest URL being called: {}", uri);
+
         return webClient.get()
                 .uri(uri)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + coveoProperties.getSearchApiKey()) // Use the Search Key
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + coveoProperties.getSearchApiKey())
                 .retrieve()
-                .onStatus(status -> status.isError(), response -> Mono.error(new SearchException("Failed to get suggestions from Coveo. Status: " + response.statusCode())))
+                .onStatus(status -> status.isError(), response ->
+                        response.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                    log.error("Coveo Suggest API Error! Status: {}, Body: {}", response.statusCode(), errorBody);
+                                    return Mono.error(new SearchException("Failed to get suggestions from Coveo. Status: " + response.statusCode()));
+                                })
+                )
                 .bodyToMono(CoveoSuggestResponse.class)
                 .retryWhen(Retry.backoff(coveoProperties.getMaxRetries(), Duration.ofSeconds(1)))
                 .block();

@@ -9,15 +9,9 @@ import lombok.Data;
 @Configuration
 public class SearchConfig {
 
-//    @Bean
-//    public RestTemplate restTemplate() {
-//        return new RestTemplate();
-//    }
-
     @ConfigurationProperties(prefix = "coveo")
     @Data
     public static class CoveoProperties {
-//        private String apiKey;
         private String searchApiKey;
         private String pushApiKey;
         private String searchEndpoint;
